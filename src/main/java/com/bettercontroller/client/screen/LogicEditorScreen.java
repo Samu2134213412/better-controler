@@ -713,6 +713,15 @@ public final class LogicEditorScreen extends Screen implements StatusSink {
         statusColor = error ? 0xFFFF6B6B : 0xFFB0B0B0;
     }
 
+    /** Closing the editor saves unsaved changes, so the graph runs as soon as the editor is closed. */
+    @Override
+    public void onClose() {
+        if (ClientGraphState.hasUnsavedChanges() && !graph.nodes().isEmpty()) {
+            save();
+        }
+        super.onClose();
+    }
+
     @Override
     public boolean isPauseScreen() {
         return false;

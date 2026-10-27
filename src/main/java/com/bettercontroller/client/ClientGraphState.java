@@ -15,7 +15,7 @@ public final class ClientGraphState {
     private static boolean unsaved;
     private static List<GraphPayloads.GraphSummary> graphs = List.of();
     private static Set<Integer> boundKeys = Set.of();
-    private static Set<Integer> lastSentKeys = Set.of();
+    private static List<GraphPayloads.OutputInfo> outputs = List.of();
     private static GraphFileStore fileStore;
 
     private ClientGraphState() {
@@ -63,12 +63,12 @@ public final class ClientGraphState {
         boundKeys = Set.copyOf(new TreeSet<>(keys));
     }
 
-    static Set<Integer> lastSentKeys() {
-        return lastSentKeys;
+    static List<GraphPayloads.OutputInfo> outputs() {
+        return outputs;
     }
 
-    static void setLastSentKeys(Set<Integer> keys) {
-        lastSentKeys = Set.copyOf(keys);
+    static void setOutputs(List<GraphPayloads.OutputInfo> list) {
+        outputs = List.copyOf(list);
     }
 
     /** .minecraft/bettercontroller/graphs */
@@ -84,6 +84,6 @@ public final class ClientGraphState {
         unsaved = false;
         graphs = List.of();
         boundKeys = Set.of();
-        lastSentKeys = Set.of();
+        outputs = List.of();
     }
 }

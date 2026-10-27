@@ -20,6 +20,7 @@ public final class GraphPayloads {
     public static final int MAX_HELD_KEYS = 16;
     private static final int MAX_BOUND_KEYS = 256;
     public static final int MAX_LISTED_GRAPHS = 1024;
+    public static final int MAX_OUTPUT_INFOS = 64;
     private static final int MAX_MESSAGE_LENGTH = 256;
 
     private GraphPayloads() {
@@ -132,6 +133,30 @@ public final class GraphPayloads {
 
         @Override
         public Type<BoundKeys> type() {
+            return TYPE;
+        }
+    }
+
+    /** One redstone output of the player's graphs as shown in the controller HUD. */
+    public record OutputInfo(String graphName, int frequency, String linkItem1, String linkItem2, int strength, boolean on) {
+        public static final StreamCodec<ByteBuf, OutputInfo> CODEC = StreamCodec.composite(
+                ByteBufCodecs.stringUtf8(GraphLimits.MAX_NAME_LENGTH), OutputInfo::graphName,
+                ByteBufCodecs.VAR_INT, OutputInfo::frequency,
+                ByteBufCodecs.stringUtf8(GraphLimits.MAX_ITEM_ID_LENGTH), OutputInfo::linkItem1,
+                ByteBufCodecs.stringUtf8(GraphLimits.MAX_ITEM_ID_LENGTH), OutputInfo::linkItem2,
+                ByteBufCodecs.VAR_INT, OutputInfo::strength,
+                ByteBufCodecs.BOOL, OutputInfo::on,
+                OutputInfo::new);
+    }
+
+    /** Current state of the player's outputs; sent when it changes. */
+    public record OutputStates(List<OutputInfo> outputs) implements CustomPacketPayload {
+        public static final Type<OutputStates> TYPE = payloadType("output_states");
+        public static final StreamCodec<ByteBuf, OutputStates> CODEC =
+                OutputInfo.CODEC.apply(ByteBufCodecs.list(MAX_OUTPUT_INFOS)).map(OutputStates::new, OutputStates::outputs);
+
+        @Override
+        public Type<OutputStates> type() {
             return TYPE;
         }
     }

@@ -63,5 +63,13 @@
   "gui.bettercontroller.strength_range": "Link strength (%s-%s)",
   "gui.bettercontroller.create_link": "Create Redstone Link:",
   "gui.bettercontroller.create_missing": "Create link (Create missing):",
-  "gui.bettercontroller.link_slot_hint": "Left click: choose item, right click: clear"
+  "gui.bettercontroller.link_slot_hint": "Left click: choose item, right click: clear",
+  "message.bettercontroller.active": "Controller active - your graph keys are being sent",
+  "message.bettercontroller.active_no_keys": "Controller active, but no saved graph uses keys yet",
+  "message.bettercontroller.inactive": "Controller inactive",
+  "hud.bettercontroller.hint": "Right click: activate controller  |  Shift + right click: editor",
+  "hud.bettercontroller.active": "Controller active (right click to stop)",
+  "hud.bettercontroller.no_keys": "No keys yet: add keyboard nodes and save the graph",
+  "hud.bettercontroller.output_on": "%s  f%s  ON (%s)",
+  "hud.bettercontroller.output_off": "%s  f%s  OFF"
 }

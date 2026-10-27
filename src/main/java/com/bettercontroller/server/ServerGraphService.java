@@ -14,6 +14,7 @@ import com.bettercontroller.logic.LogicNode;
 import com.bettercontroller.logic.NodeType;
 import com.bettercontroller.network.GraphPayloads;
 import com.bettercontroller.signal.FrequencyRegistry;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -56,6 +57,8 @@ public final class ServerGraphService {
     private static final Set<UUID> DIRTY_OWNERS = new HashSet<>();
     /** Node states of every graph from its last evaluation. */
     private static final Map<UUID, Map<Integer, Boolean>> LAST_STATES = new HashMap<>();
+    /** Output list last sent to each online owner, to send only changes. */
+    private static final Map<UUID, List<GraphPayloads.OutputInfo>> LAST_SENT_OUTPUTS = new HashMap<>();
 
     private ServerGraphService() {
     }
@@ -83,6 +86,8 @@ public final class ServerGraphService {
     public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             sendBoundKeys(player);
+            // Evaluating the owner's graphs also sends the current output states to the client.
+            DIRTY_OWNERS.add(player.getUUID());
         }
     }
 
@@ -90,6 +95,7 @@ public final class ServerGraphService {
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         UUID id = event.getEntity().getUUID();
         LAST_ACTION_TICK.remove(id);
+        LAST_SENT_OUTPUTS.remove(id);
         Set<Integer> held = HELD_KEYS.remove(id);
         if (held != null && !held.isEmpty()) {
             DIRTY_OWNERS.add(id);
@@ -117,6 +123,12 @@ public final class ServerGraphService {
                     evaluate(entry);
                 }
             }
+            for (UUID owner : DIRTY_OWNERS) {
+                ServerPlayer player = server.getPlayerList().getPlayer(owner);
+                if (player != null) {
+                    sendOutputsIfChanged(player, data);
+                }
+            }
             DIRTY_OWNERS.clear();
         }
         // Every tick, because link transmitters follow their owner's position.
@@ -140,7 +152,7 @@ public final class ServerGraphService {
             status(player, "You may not open this graph", true);
             return;
         }
-        PacketDistributor.sendToPlayer(player, new GraphPayloads.GraphData(GraphWire.compress(GraphJsonCodec.encode(entry.graph(), false))));
+        send(player, new GraphPayloads.GraphData(GraphWire.compress(GraphJsonCodec.encode(entry.graph(), false))));
     }
 
     public static void handleSave(ServerPlayer player, GraphPayloads.SaveGraph payload) {
@@ -185,7 +197,7 @@ public final class ServerGraphService {
         }
         data.put(graph, owner, ownerName);
         evaluate(data.get(graph.id()));
-        PacketDistributor.sendToPlayer(player, new GraphPayloads.Status("Saved \"" + graph.name() + "\"", false, true));
+        send(player, new GraphPayloads.Status("Saved \"" + graph.name() + "\"", false, true));
         sendGraphList(player);
         notifyOwner(player.server, owner);
     }
@@ -268,7 +280,7 @@ public final class ServerGraphService {
         if (list.size() > GraphPayloads.MAX_LISTED_GRAPHS) {
             list = new ArrayList<>(list.subList(0, GraphPayloads.MAX_LISTED_GRAPHS));
         }
-        PacketDistributor.sendToPlayer(player, new GraphPayloads.GraphList(list));
+        send(player, new GraphPayloads.GraphList(list));
     }
 
     /** The owner's key bindings may have changed; tell their client which keys to report. */
@@ -282,7 +294,7 @@ public final class ServerGraphService {
 
     private static void sendBoundKeys(ServerPlayer player) {
         Set<Integer> keys = boundKeys(WorldGraphData.get(player.server), player.getUUID());
-        PacketDistributor.sendToPlayer(player, new GraphPayloads.BoundKeys(new ArrayList<>(keys)));
+        send(player, new GraphPayloads.BoundKeys(new ArrayList<>(keys)));
     }
 
     private static Set<Integer> boundKeys(WorldGraphData data, UUID owner) {
@@ -295,8 +307,36 @@ public final class ServerGraphService {
         return keys;
     }
 
+    /** Output nodes of the player's graphs with their current state, for the controller HUD. */
+    private static void sendOutputsIfChanged(ServerPlayer player, WorldGraphData data) {
+        List<GraphPayloads.OutputInfo> outputs = new ArrayList<>();
+        for (WorldGraphData.Entry entry : data.all()) {
+            if (!entry.owner().equals(player.getUUID())) {
+                continue;
+            }
+            Map<Integer, Boolean> states = LAST_STATES.getOrDefault(entry.graph().id(), Map.of());
+            for (LogicNode node : entry.graph().nodes()) {
+                if (node.type() == NodeType.REDSTONE_OUTPUT && outputs.size() < GraphPayloads.MAX_OUTPUT_INFOS) {
+                    outputs.add(new GraphPayloads.OutputInfo(entry.graph().name(), node.frequency(),
+                            node.linkItem(0), node.linkItem(1), node.strength(), states.getOrDefault(node.id(), false)));
+                }
+            }
+        }
+        if (!outputs.equals(LAST_SENT_OUTPUTS.get(player.getUUID()))) {
+            LAST_SENT_OUTPUTS.put(player.getUUID(), outputs);
+            send(player, new GraphPayloads.OutputStates(outputs));
+        }
+    }
+
+    /** Sends a packet if the client can receive it (e.g. not a game test's mock player). */
+    private static void send(ServerPlayer player, CustomPacketPayload payload) {
+        if (player.connection != null && player.connection.hasChannel(payload.type())) {
+            PacketDistributor.sendToPlayer(player, payload);
+        }
+    }
+
     private static void status(ServerPlayer player, String message, boolean error) {
-        PacketDistributor.sendToPlayer(player, new GraphPayloads.Status(message, error, false));
+        send(player, new GraphPayloads.Status(message, error, false));
     }
 
     private static void resetState() {
@@ -305,6 +345,7 @@ public final class ServerGraphService {
         LAST_ACTION_TICK.clear();
         DIRTY_OWNERS.clear();
         LAST_STATES.clear();
+        LAST_SENT_OUTPUTS.clear();
         CreateLinkBridge.clear();
         BetterController.LOGGER.debug("Better Controller signal state reset");
     }

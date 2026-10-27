@@ -17,7 +17,8 @@ In VS Code: Ordner öffnen, die Java-Erweiterungen importieren das Gradle-Projek
 
 | Aktion | Steuerung |
 |---|---|
-| Editor öffnen | Controller in Haupt- oder Nebenhand halten, **Shift+C** (in den Steuerungsoptionen änderbar) |
+| **Controller aktivieren / deaktivieren** | Controller halten, **Rechtsklick**. Nur im aktiven Zustand werden deine Graph-Tasten gesendet, und Minecraft-Aktionen auf denselben Tasten (z. B. Laufen auf W) sind solange gesperrt. Öffnen eines Menüs oder Weglegen beendet ihn. |
+| Editor öffnen | Controller halten, **Shift+Rechtsklick** oder **Shift+C** (in den Steuerungsoptionen änderbar) |
 | Node-Bibliothek | **Shift+Space** oder Button „+ Node" |
 | Node verschieben | Linksklick auf Node und ziehen |
 | Verbinden | Vom Ausgang (rechts) auf einen Eingang (links) ziehen |
@@ -30,7 +31,7 @@ In VS Code: Ordner öffnen, die Java-Erweiterungen importieren das Gradle-Projek
 | Frequenz eines Ausgangs | Node anklicken, Zahl 0–999999 eingeben |
 | Create-Link-Frequenz | Node anklicken, Linksklick auf einen der zwei Slots: Item aus der Liste (mit Suche) wählen; Rechtsklick leert den Slot |
 | Link-Stärke | Node anklicken, Zahl 1–15 (Stärke, die Create-Empfänger bekommen) |
-| Speichern | „Speichern": speichert in der aktuellen Welt (serverseitig) |
+| Speichern | „Speichern" oder einfach den Editor schließen (speichert automatisch). Erst gespeicherte Graphen laufen. |
 | Export | „Export": schreibt `.minecraft/bettercontroller/graphs/<Name>.bcgraph` |
 | Import / Öffnen / Löschen | „Graphen": Liste der Welt-Graphen, Umschalten auf Dateien zum Import |
 
@@ -38,11 +39,13 @@ Der Controller wird mit Redstone, Quarz und Eisenbarren gecraftet (Rezeptbuch) u
 
 Die Nodes im Editor zeigen eine Live-Vorschau: Grüner Kopf bzw. rote Leitung bedeutet „an", berechnet mit den gerade gedrückten Tasten.
 
+Hältst du den Controller, zeigt das HUD, wie man ihn aktiviert. Im aktiven Zustand zeigt es links oben deine belegten Tasten (grün = gedrückt) und alle Ausgänge mit dem Zustand, den der **Server** meldet. So siehst du direkt, ob deine Tastendrücke ankommen.
+
 ## Funktionsweise
 
 - **Nodes:** Keyboard Input (Standardtaste B), AND, OR, NOT, NAND, NOR, XOR (je 2 Eingänge, NOT 1) und Redstone Output.
 - **Verbindungsregeln:** Ein Ausgang kann beliebig viele Eingänge speisen, ein Eingang hat höchstens eine Verbindung (eine neue ersetzt die alte). Schleifen werden abgelehnt, die Auswertung ist dadurch immer eindeutig. Unverbundene Eingänge gelten als „aus".
-- **Ausführung:** Gespeicherte Graphen laufen auf dem Server dauerhaft. Keyboard-Nodes lesen die Tasten des Graph-Besitzers, aber nur, solange er online ist und einen Controller hält. Der Client meldet nur Tasten, die in seinen Graphen vorkommen, und nur bei Änderungen. Der Server verwirft ungültige oder nicht belegte Tasten.
+- **Ausführung:** Gespeicherte Graphen laufen auf dem Server dauerhaft. Keyboard-Nodes lesen die Tasten des Graph-Besitzers, aber nur, solange er online ist und einen aktivierten Controller hält. Der Client meldet nur Tasten, die in seinen Graphen vorkommen, und nur bei Änderungen. Der Server verwirft ungültige oder nicht belegte Tasten.
 - **Frequenzen:** Jeder Redstone-Output sendet auf seiner Frequenz (0–999999). Regel bei gleicher Frequenz: Die Frequenz ist **an, solange mindestens ein Ausgang auf ihr an ist** (ODER). Das ist unabhängig von der Reihenfolge. Signale eines gelöschten Graphen oder entfernter Nodes verschwinden sofort. Der Zustand gilt pro Welt und wird beim Serverstart aus den gespeicherten Graphen neu berechnet.
 - **Create / Create: Aeronautics:** Ist Create (6.x) installiert, sendet jeder Redstone-Output mit mindestens einem Frequenz-Item zusätzlich ins Redstone-Link-Netz von Create. Die Frequenz besteht wie beim Create Redstone Link aus zwei Items, wobei ein Slot leer bleiben darf. Normale Create Redstone Links auf Empfang (und alles, was dieses Netz nutzt, etwa die Links von Create: Aeronautics) empfangen das Signal. Es funktioniert wie Creates Linked Controller: Der Sender sitzt an der Position des Graph-Besitzers in dessen Dimension und sendet nur, solange der Besitzer online ist. Empfänger müssen in Creates Link-Reichweite liegen (Standard 256 Blöcke). Gesendet wird die eingestellte Stärke (1–15), solange der Ausgang an ist, sonst 0. Create wird nur per Reflection angesprochen: Ohne Create läuft der Mod normal, die Slots bleiben dann wirkungslos. Passt Creates API einmal nicht, schaltet sich die Anbindung mit einer Warnung im Log ab, statt abzustürzen.
 - **Abfrage:** `/bettercontroller signal <frequenz>` und `/bettercontroller signals` zeigen den Signalzustand. Bis es einen Empfängerblock gibt, ist das der Weg, Schaltungen im Spiel zu prüfen.
@@ -80,7 +83,8 @@ Jeder Push wird von GitHub Actions gebaut (`.github/workflows/build.yml`): Tests
 
 - [ ] `gradlew.bat build` erfolgreich
 - [ ] Controller im Kreativmenü und per Rezept, bleibt nach Neustart erhalten
-- [ ] Shift+C öffnet den Editor nur mit Controller in der Hand, nicht doppelt
+- [ ] Shift+C / Shift+Rechtsklick öffnet den Editor nur mit Controller in der Hand, nicht doppelt
+- [ ] Rechtsklick aktiviert den Controller, HUD zeigt Tasten und Ausgänge; Taste drücken: Ausgang im HUD AN; mit W belegt: Spieler läuft nicht
 - [ ] Nodes platzieren, verschieben, verbinden, löschen; Zoom und Verschieben; Text bleibt scharf
 - [ ] Bibliothek scrollt (kleines Fenster bzw. hohe GUI-Skalierung) und Klicks treffen den sichtbaren Eintrag
 - [ ] Taste ändern (inkl. F-Tasten, Pfeile, Leertaste), ESC bricht ab

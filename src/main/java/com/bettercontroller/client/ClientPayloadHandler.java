@@ -43,6 +43,10 @@ public final class ClientPayloadHandler {
         ClientGraphState.setBoundKeys(payload.keys());
     }
 
+    public static void handleOutputStates(GraphPayloads.OutputStates payload) {
+        ClientGraphState.setOutputs(payload.outputs());
+    }
+
     public static void handleStatus(GraphPayloads.Status payload) {
         Minecraft mc = Minecraft.getInstance();
         if (payload.saved()) {

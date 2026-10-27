@@ -63,5 +63,13 @@
   "gui.bettercontroller.strength_range": "Link-Stärke (%s-%s)",
   "gui.bettercontroller.create_link": "Create Redstone Link:",
   "gui.bettercontroller.create_missing": "Create-Link (Create fehlt):",
-  "gui.bettercontroller.link_slot_hint": "Linksklick: Item wählen, Rechtsklick: leeren"
+  "gui.bettercontroller.link_slot_hint": "Linksklick: Item wählen, Rechtsklick: leeren",
+  "message.bettercontroller.active": "Controller aktiv - deine Graph-Tasten werden gesendet",
+  "message.bettercontroller.active_no_keys": "Controller aktiv, aber noch kein gespeicherter Graph nutzt Tasten",
+  "message.bettercontroller.inactive": "Controller inaktiv",
+  "hud.bettercontroller.hint": "Rechtsklick: Controller aktivieren  |  Shift + Rechtsklick: Editor",
+  "hud.bettercontroller.active": "Controller aktiv (Rechtsklick zum Beenden)",
+  "hud.bettercontroller.no_keys": "Noch keine Tasten: Keyboard-Nodes anlegen und Graph speichern",
+  "hud.bettercontroller.output_on": "%s  f%s  AN (%s)",
+  "hud.bettercontroller.output_off": "%s  f%s  AUS"
 }

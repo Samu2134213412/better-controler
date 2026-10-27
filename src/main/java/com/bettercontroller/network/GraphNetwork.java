@@ -43,6 +43,8 @@ public final class GraphNetwork {
                 (payload, context) -> context.enqueueWork(() -> ClientPayloadHandler.handleGraphData(payload)));
         registrar.playToClient(BoundKeys.TYPE, BoundKeys.CODEC,
                 (payload, context) -> context.enqueueWork(() -> ClientPayloadHandler.handleBoundKeys(payload)));
+        registrar.playToClient(GraphPayloads.OutputStates.TYPE, GraphPayloads.OutputStates.CODEC,
+                (payload, context) -> context.enqueueWork(() -> ClientPayloadHandler.handleOutputStates(payload)));
         registrar.playToClient(Status.TYPE, Status.CODEC,
                 (payload, context) -> context.enqueueWork(() -> ClientPayloadHandler.handleStatus(payload)));
     }
