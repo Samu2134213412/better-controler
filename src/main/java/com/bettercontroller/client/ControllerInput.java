@@ -72,6 +72,23 @@ public final class ControllerInput {
         if (active && (mc.screen != null || mc.player.isSpectator() || !ModItems.isHoldingController(mc.player))) {
             deactivate(mc);
         }
+        sendIfChanged(mc);
+        if (active) {
+            suppressVanillaKeys(mc);
+        }
+    }
+
+    /**
+     * Called from the keyboard callback, so a press is sent at once instead of at the next tick
+     * (up to 50 ms later). The tick above still catches anything missed, e.g. focus loss.
+     */
+    static void onKey(Minecraft mc, int key) {
+        if (active && mc.player != null && mc.screen == null && ClientGraphState.boundKeys().contains(key)) {
+            sendIfChanged(mc);
+        }
+    }
+
+    private static void sendIfChanged(Minecraft mc) {
         Set<Integer> now = new TreeSet<>();
         if (active) {
             long window = mc.getWindow().getWindow();
@@ -80,9 +97,8 @@ public final class ControllerInput {
                     now.add(key);
                 }
             }
-            suppressVanillaKeys(mc);
         }
-        if (!now.equals(pressed)) {
+        if (!now.equals(pressed) && mc.getConnection() != null) {
             pressed = Set.copyOf(now);
             PacketDistributor.sendToServer(new GraphPayloads.HeldKeys(new ArrayList<>(now)));
         }

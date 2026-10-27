@@ -35,7 +35,13 @@ In VS Code: Ordner öffnen, die Java-Erweiterungen importieren das Gradle-Projek
 | Export | „Export": schreibt `.minecraft/bettercontroller/graphs/<Name>.bcgraph` |
 | Import / Öffnen / Löschen | „Graphen": Liste der Welt-Graphen, Umschalten auf Dateien zum Import |
 
-Der Controller wird mit Redstone, Quarz und Eisenbarren gecraftet (Rezeptbuch) und liegt im Kreativ-Tab „Werkzeuge".
+Der Controller liegt im Kreativ-Tab „Werkzeuge" und wird an der Werkbank gecraftet. Das Rezept erscheint im Rezeptbuch, sobald man Redstone im Inventar hat:
+
+```
+ .  R  .      R = Redstone
+ E  Q  E      Q = Netherquarz
+ E  E  E      E = Eisenbarren
+```
 
 Die Nodes im Editor zeigen eine Live-Vorschau: Grüner Kopf bzw. rote Leitung bedeutet „an", berechnet mit den gerade gedrückten Tasten.
 
@@ -45,6 +51,7 @@ Hältst du den Controller, zeigt das HUD, wie man ihn aktiviert. Im aktiven Zust
 
 - **Nodes:** Keyboard Input (Standardtaste B), AND, OR, NOT, NAND, NOR, XOR (je 2 Eingänge, NOT 1) und Redstone Output.
 - **Verbindungsregeln:** Ein Ausgang kann beliebig viele Eingänge speisen, ein Eingang hat höchstens eine Verbindung (eine neue ersetzt die alte). Schleifen werden abgelehnt, die Auswertung ist dadurch immer eindeutig. Unverbundene Eingänge gelten als „aus".
+- **Reaktionszeit:** Tastendrücke werden direkt beim Drücken gesendet, und der Server rechnet sofort beim Empfang. Ausgang, Frequenz und Create-Sender ändern sich ohne Tick-Wartezeit. Ein Create-Empfänger schaltet danach in seinem nächsten Tick (höchstens 50 ms).
 - **Ausführung:** Gespeicherte Graphen laufen auf dem Server dauerhaft. Keyboard-Nodes lesen die Tasten des Graph-Besitzers, aber nur, solange er online ist und einen aktivierten Controller hält. Der Client meldet nur Tasten, die in seinen Graphen vorkommen, und nur bei Änderungen. Der Server verwirft ungültige oder nicht belegte Tasten.
 - **Frequenzen:** Jeder Redstone-Output sendet auf seiner Frequenz (0–999999). Regel bei gleicher Frequenz: Die Frequenz ist **an, solange mindestens ein Ausgang auf ihr an ist** (ODER). Das ist unabhängig von der Reihenfolge. Signale eines gelöschten Graphen oder entfernter Nodes verschwinden sofort. Der Zustand gilt pro Welt und wird beim Serverstart aus den gespeicherten Graphen neu berechnet.
 - **Create / Create: Aeronautics:** Ist Create (6.x) installiert, sendet jeder Redstone-Output mit mindestens einem Frequenz-Item zusätzlich ins Redstone-Link-Netz von Create. Die Frequenz besteht wie beim Create Redstone Link aus zwei Items, wobei ein Slot leer bleiben darf. Normale Create Redstone Links auf Empfang (und alles, was dieses Netz nutzt, etwa die Links von Create: Aeronautics) empfangen das Signal. Es funktioniert wie Creates Linked Controller: Der Sender sitzt an der Position des Graph-Besitzers in dessen Dimension und sendet nur, solange der Besitzer online ist. Empfänger müssen in Creates Link-Reichweite liegen (Standard 256 Blöcke). Gesendet wird die eingestellte Stärke (1–15), solange der Ausgang an ist, sonst 0. Create wird nur per Reflection angesprochen: Ohne Create läuft der Mod normal, die Slots bleiben dann wirkungslos. Passt Creates API einmal nicht, schaltet sich die Anbindung mit einer Warnung im Log ab, statt abzustürzen.

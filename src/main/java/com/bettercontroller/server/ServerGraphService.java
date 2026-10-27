@@ -135,6 +135,24 @@ public final class ServerGraphService {
         CreateLinkBridge.sync(server, data.all(), LAST_STATES);
     }
 
+    /**
+     * Re-evaluates one owner's graphs right away and pushes the result to the frequencies, Create
+     * links and the owner's HUD, instead of waiting for the end of the tick. Keeps key presses fast.
+     */
+    private static void refreshOwnerNow(MinecraftServer server, UUID owner) {
+        WorldGraphData data = WorldGraphData.get(server);
+        for (WorldGraphData.Entry entry : data.all()) {
+            if (entry.owner().equals(owner)) {
+                evaluate(entry);
+            }
+        }
+        ServerPlayer player = server.getPlayerList().getPlayer(owner);
+        if (player != null) {
+            sendOutputsIfChanged(player, data);
+        }
+        CreateLinkBridge.sync(server, data.all(), LAST_STATES);
+    }
+
     // ---- packet handlers (server thread) ----
 
     public static void handleListRequest(ServerPlayer player, GraphPayloads.RequestGraphList payload) {
@@ -237,7 +255,7 @@ public final class ServerGraphService {
         Set<Integer> previous = HELD_KEYS.getOrDefault(player.getUUID(), Set.of());
         if (!previous.equals(next)) {
             HELD_KEYS.put(player.getUUID(), next);
-            DIRTY_OWNERS.add(player.getUUID());
+            refreshOwnerNow(player.server, player.getUUID());
         }
     }
 

@@ -73,6 +73,18 @@ public final class BetterControllerGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void controllerRecipeIsLoaded(GameTestHelper helper) {
+        var server = helper.getLevel().getServer();
+        var recipe = server.getRecipeManager().byKey(BetterController.id("controller"));
+        helper.assertTrue(recipe.isPresent(), "controller recipe not loaded");
+        ItemStack result = recipe.get().value().getResultItem(helper.getLevel().registryAccess());
+        helper.assertTrue(result.is(ModItems.CONTROLLER.get()), "recipe does not make a controller");
+        helper.assertTrue(server.getAdvancements().get(BetterController.id("recipes/redstone/controller")) != null,
+                "recipe book unlock advancement not loaded");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void itemIdsAreCheckedAgainstRegistry(GameTestHelper helper) {
         helper.assertTrue(CreateLinkBridge.isKnownItem(""), "empty slot rejected");
         helper.assertTrue(CreateLinkBridge.isKnownItem("minecraft:redstone"), "redstone rejected");
@@ -125,13 +137,15 @@ public final class BetterControllerGameTests {
         data.put(graph, player.getUUID(), "mock");
 
         helper.startSequence()
-                .thenExecuteAfter(1, () -> ServerGraphService.handleHeldKeys(player,
-                        new GraphPayloads.HeldKeys(List.of(KeyCodes.DEFAULT_KEY))))
-                .thenWaitUntil(() -> helper.assertTrue(ServerGraphService.signals().isActive(frequency),
-                        "frequency not active after key press"))
-                .thenExecute(() -> ServerGraphService.handleHeldKeys(player, new GraphPayloads.HeldKeys(List.of())))
-                .thenWaitUntil(() -> helper.assertFalse(ServerGraphService.signals().isActive(frequency),
-                        "frequency still active after release"))
+                // The server reacts within the packet handler, not one tick later.
+                .thenExecuteAfter(1, () -> {
+                    ServerGraphService.handleHeldKeys(player, new GraphPayloads.HeldKeys(List.of(KeyCodes.DEFAULT_KEY)));
+                    helper.assertTrue(ServerGraphService.signals().isActive(frequency), "frequency not active right after key press");
+                })
+                .thenExecute(() -> {
+                    ServerGraphService.handleHeldKeys(player, new GraphPayloads.HeldKeys(List.of()));
+                    helper.assertFalse(ServerGraphService.signals().isActive(frequency), "frequency still active right after release");
+                })
                 // Without the controller in hand, key reports are ignored.
                 .thenExecute(() -> {
                     player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);

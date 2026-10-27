@@ -13,6 +13,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.settings.KeyConflictContext;
@@ -41,6 +42,7 @@ public final class BetterControllerClient {
         NeoForge.EVENT_BUS.addListener(BetterControllerClient::onClientTickPre);
         NeoForge.EVENT_BUS.addListener(BetterControllerClient::onClientTickPost);
         NeoForge.EVENT_BUS.addListener(BetterControllerClient::onRightClickItem);
+        NeoForge.EVENT_BUS.addListener(BetterControllerClient::onKey);
         NeoForge.EVENT_BUS.addListener(BetterControllerClient::onLoggingOut);
     }
 
@@ -59,6 +61,10 @@ public final class BetterControllerClient {
 
     private static void onClientTickPre(ClientTickEvent.Pre event) {
         ControllerInput.tick(Minecraft.getInstance());
+    }
+
+    private static void onKey(InputEvent.Key event) {
+        ControllerInput.onKey(Minecraft.getInstance(), event.getKey());
     }
 
     private static void onClientTickPost(ClientTickEvent.Post event) {
