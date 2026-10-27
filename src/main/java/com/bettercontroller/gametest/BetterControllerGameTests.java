@@ -33,9 +33,7 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import java.lang.reflect.Method;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -90,7 +88,8 @@ public final class BetterControllerGameTests {
                 "bridge available=" + CreateLinkBridge.isAvailable() + " but create loaded=" + createLoaded);
         if (createLoaded) {
             try {
-                CreateLinkBridge.selfTest(helper.getLevel(), helper.absolutePos(BlockPos.ZERO));
+                CreateLinkBridge.testTransmitter(helper.getLevel(), helper.absolutePos(BlockPos.ZERO),
+                        "minecraft:redstone", "", 15).close();
             } catch (Exception e) {
                 helper.fail("Create link self test failed: " + e);
                 return;
@@ -101,60 +100,46 @@ public final class BetterControllerGameTests {
 
     /**
      * The whole server path: a player holding the controller reports key B, the graph turns its
-     * output on, the frequency becomes active and - with Create installed - a real Create Redstone
-     * Link receiver with the same two items gets powered. Releasing the key turns everything off.
+     * output on and the frequency becomes active; releasing the key turns it off again.
+     *
+     * <p>Runs only without Create: Create broadcasts packets to all players every few ticks, which
+     * the mock player's connection cannot take. The Create part is covered by
+     * {@link #createReceiverGetsSignal}.
      */
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void heldKeyDrivesOutputs(GameTestHelper helper) {
-        boolean create = CreateLinkBridge.isAvailable();
-        BlockPos receiverPos = new BlockPos(1, 2, 1);
+        if (ModList.get().isLoaded("create")) {
+            helper.succeed();
+            return;
+        }
         int frequency = 777_001;
-
-        ServerPlayer player = mockPlayer(helper);
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
         player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(ModItems.CONTROLLER.get()));
-        BlockPos playerPos = helper.absolutePos(new BlockPos(1, 1, 0));
-        player.moveTo(playerPos.getX() + 0.5, playerPos.getY(), playerPos.getZ() + 0.5);
 
         LogicGraph graph = LogicGraph.create("Key Test");
         LogicNode key = graph.addNode(NodeType.KEYBOARD_INPUT, 0, 0);
         LogicNode out = graph.addNode(NodeType.REDSTONE_OUTPUT, 100, 0);
         out.setFrequency(frequency);
-        out.setLinkItem(0, "minecraft:redstone");
-        out.setLinkItem(1, "minecraft:lapis_lazuli");
         graph.connect(new Connection(key.id(), 0, out.id(), 0));
         WorldGraphData data = WorldGraphData.get(helper.getLevel().getServer());
         data.put(graph, player.getUUID(), "mock");
 
-        if (create) {
-            helper.setBlock(new BlockPos(1, 1, 1), Blocks.STONE);
-            Block link = BuiltInRegistries.BLOCK.get(ResourceLocation.parse("create:redstone_link"));
-            BlockState state = withValue(withValue(link.defaultBlockState(), "facing", "up"), "receiver", "true");
-            helper.setBlock(receiverPos, state);
-        }
-
         helper.startSequence()
-                // Create adds the link behaviour when the block entity first ticks.
-                .thenWaitUntil(() -> helper.assertTrue(!create || linkBehaviour(helper, receiverPos) != null,
-                        "Create Redstone Link not initialized yet"))
+                .thenExecuteAfter(1, () -> ServerGraphService.handleHeldKeys(player,
+                        new GraphPayloads.HeldKeys(List.of(KeyCodes.DEFAULT_KEY))))
+                .thenWaitUntil(() -> helper.assertTrue(ServerGraphService.signals().isActive(frequency),
+                        "frequency not active after key press"))
+                .thenExecute(() -> ServerGraphService.handleHeldKeys(player, new GraphPayloads.HeldKeys(List.of())))
+                .thenWaitUntil(() -> helper.assertFalse(ServerGraphService.signals().isActive(frequency),
+                        "frequency still active after release"))
+                // Without the controller in hand, key reports are ignored.
                 .thenExecute(() -> {
-                    if (create) {
-                        setCreateFrequency(helper, linkBehaviour(helper, receiverPos));
-                    }
+                    player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
                     ServerGraphService.handleHeldKeys(player, new GraphPayloads.HeldKeys(List.of(KeyCodes.DEFAULT_KEY)));
                 })
-                .thenWaitUntil(() -> {
-                    helper.assertTrue(ServerGraphService.signals().isActive(frequency), "frequency not active after key press");
-                    if (create) {
-                        helper.assertBlockProperty(receiverPos, BlockStateProperties.POWERED, true);
-                    }
-                })
-                .thenExecute(() -> ServerGraphService.handleHeldKeys(player, new GraphPayloads.HeldKeys(List.of())))
-                .thenWaitUntil(() -> {
-                    helper.assertFalse(ServerGraphService.signals().isActive(frequency), "frequency still active after release");
-                    if (create) {
-                        helper.assertBlockProperty(receiverPos, BlockStateProperties.POWERED, false);
-                    }
-                })
+                .thenIdle(3)
+                .thenExecute(() -> helper.assertFalse(ServerGraphService.signals().isActive(frequency),
+                        "key accepted without controller"))
                 .thenExecute(() -> {
                     data.remove(graph.id());
                     player.getServer().getPlayerList().remove(player);
@@ -163,22 +148,45 @@ public final class BetterControllerGameTests {
     }
 
     /**
-     * A mock player in the player list. Other mods' login handlers may throw because the mock
-     * connection cannot receive their packets (Create does); the player is already in the player
-     * list when the login event fires, so it is looked up there in that case.
+     * With Create installed: our transmitter powers a real Create Redstone Link receiver that has
+     * the same two frequency items, and turning it to strength 0 unpowers it.
      */
-    private static ServerPlayer mockPlayer(GameTestHelper helper) {
-        var players = helper.getLevel().getServer().getPlayerList();
-        Set<UUID> before = new HashSet<>();
-        players.getPlayers().forEach(p -> before.add(p.getUUID()));
-        try {
-            return helper.makeMockServerPlayerInLevel();
-        } catch (RuntimeException e) {
-            return players.getPlayers().stream()
-                    .filter(p -> !before.contains(p.getUUID()))
-                    .findFirst()
-                    .orElseThrow(() -> e);
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void createReceiverGetsSignal(GameTestHelper helper) {
+        if (!CreateLinkBridge.isAvailable()) {
+            helper.succeed();
+            return;
         }
+        BlockPos receiverPos = new BlockPos(1, 2, 1);
+        helper.setBlock(new BlockPos(1, 1, 1), Blocks.STONE);
+        Block link = BuiltInRegistries.BLOCK.get(ResourceLocation.parse("create:redstone_link"));
+        helper.setBlock(receiverPos, withValue(withValue(link.defaultBlockState(), "facing", "up"), "receiver", "true"));
+        CreateLinkBridge.TestTransmitter[] transmitter = new CreateLinkBridge.TestTransmitter[1];
+
+        helper.startSequence()
+                // Create adds the link behaviour when the block entity first ticks.
+                .thenWaitUntil(() -> helper.assertTrue(linkBehaviour(helper, receiverPos) != null,
+                        "Create Redstone Link not initialized yet"))
+                .thenExecute(() -> {
+                    setCreateFrequency(helper, linkBehaviour(helper, receiverPos));
+                    try {
+                        transmitter[0] = CreateLinkBridge.testTransmitter(helper.getLevel(),
+                                helper.absolutePos(new BlockPos(0, 1, 0)), "minecraft:redstone", "minecraft:lapis_lazuli", 15);
+                    } catch (ReflectiveOperationException e) {
+                        helper.fail("Could not create transmitter: " + e);
+                    }
+                })
+                .thenWaitUntil(() -> helper.assertBlockProperty(receiverPos, BlockStateProperties.POWERED, true))
+                .thenExecute(() -> {
+                    try {
+                        transmitter[0].setStrength(0);
+                    } catch (ReflectiveOperationException e) {
+                        helper.fail("Could not update transmitter: " + e);
+                    }
+                })
+                .thenWaitUntil(() -> helper.assertBlockProperty(receiverPos, BlockStateProperties.POWERED, false))
+                .thenExecute(() -> transmitter[0].close())
+                .thenSucceed();
     }
 
     @SuppressWarnings("unchecked")
