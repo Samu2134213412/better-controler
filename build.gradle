@@ -28,6 +28,11 @@ neoForge {
             server()
             programArgument '--nogui'
         }
+        // Starts a server, runs the mod's game tests and exits; used by CI as a startup check.
+        gameTestServer {
+            type = 'gameTestServer'
+            systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
+        }
         configureEach {
             systemProperty 'forge.logging.markers', 'REGISTRIES'
             logLevel = org.slf4j.event.Level.DEBUG

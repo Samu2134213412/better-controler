@@ -56,5 +56,12 @@
   "node.bettercontroller.xor": "XOR",
   "node.bettercontroller.xor.desc": "On when the inputs differ",
   "node.bettercontroller.redstone_output": "Redstone Output",
-  "node.bettercontroller.redstone_output.desc": "Sends its input on a wireless frequency"
+  "node.bettercontroller.redstone_output.desc": "Sends its input on a wireless frequency",
+  "screen.bettercontroller.item_picker": "Choose Frequency Item",
+  "gui.bettercontroller.search": "Search...",
+  "gui.bettercontroller.strength": "Strength",
+  "gui.bettercontroller.strength_range": "Link strength (%s-%s)",
+  "gui.bettercontroller.create_link": "Create Redstone Link:",
+  "gui.bettercontroller.create_missing": "Create link (Create missing):",
+  "gui.bettercontroller.link_slot_hint": "Left click: choose item, right click: clear"
 }

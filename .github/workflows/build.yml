@@ -25,6 +25,10 @@ jobs:
           chmod +x gradlew
           ./gradlew build --stacktrace
 
+      - name: Server startup check
+        timeout-minutes: 10
+        run: ./gradlew runGameTestServer
+
       - uses: actions/upload-artifact@v4
         with:
           name: bettercontroller-jar

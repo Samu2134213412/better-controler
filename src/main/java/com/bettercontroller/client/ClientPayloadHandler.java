@@ -5,6 +5,7 @@ import com.bettercontroller.client.screen.LogicEditorScreen;
 import com.bettercontroller.client.screen.StatusSink;
 import com.bettercontroller.logic.GraphJsonCodec;
 import com.bettercontroller.logic.GraphValidationException;
+import com.bettercontroller.logic.GraphWire;
 import com.bettercontroller.logic.LogicGraph;
 import com.bettercontroller.network.GraphPayloads;
 import net.minecraft.client.Minecraft;
@@ -25,7 +26,7 @@ public final class ClientPayloadHandler {
     public static void handleGraphData(GraphPayloads.GraphData payload) {
         LogicGraph graph;
         try {
-            graph = GraphJsonCodec.decode(payload.json());
+            graph = GraphJsonCodec.decode(GraphWire.decompress(payload.data()));
         } catch (GraphValidationException e) {
             handleStatus(new GraphPayloads.Status("Received invalid graph: " + e.getMessage(), true, false));
             return;

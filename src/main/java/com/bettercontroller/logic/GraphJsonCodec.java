@@ -20,12 +20,14 @@ import java.util.UUID;
  * <pre>
  * {
  *   "format": "bettercontroller.graph", "version": 1, "id": "uuid", "name": "...",
- *   "nodes": [ { "id": 1, "type": "keyboard_input", "x": 0, "y": 0, "settings": { "key": 66 } } ],
+ *   "nodes": [ { "id": 1, "type": "keyboard_input", "x": 0, "y": 0, "settings": { "key": 66 } },
+ *              { "id": 2, "type": "redstone_output", "x": 90, "y": 0, "settings":
+ *                { "frequency": 7, "linkItems": ["minecraft:redstone", ""], "strength": 15 } } ],
  *   "connections": [ { "from": 1, "fromPort": 0, "to": 2, "toPort": 0 } ]
  * }
  * </pre>
  * Unknown fields are ignored so later versions can add data. Missing settings get their defaults
- * (key B, frequency 0), which keeps older files loadable.
+ * (key B, frequency 0, empty link items, strength 15), which keeps older files loadable.
  */
 public final class GraphJsonCodec {
     public static final String FORMAT = "bettercontroller.graph";
@@ -56,6 +58,11 @@ public final class GraphJsonCodec {
                 settings.addProperty("key", node.key());
             } else if (node.type() == NodeType.REDSTONE_OUTPUT) {
                 settings.addProperty("frequency", node.frequency());
+                JsonArray items = new JsonArray();
+                items.add(node.linkItem(0));
+                items.add(node.linkItem(1));
+                settings.add("linkItems", items);
+                settings.addProperty("strength", node.strength());
             }
             json.add("settings", settings);
             nodes.add(json);
@@ -149,6 +156,26 @@ public final class GraphJsonCodec {
                 if (!node.setFrequency(frequency)) {
                     throw new GraphValidationException("Frequency " + frequency + " on node " + nodeId
                             + " is outside " + GraphLimits.MIN_FREQUENCY + "-" + GraphLimits.MAX_FREQUENCY);
+                }
+            }
+            if (type == NodeType.REDSTONE_OUTPUT && settings.has("linkItems")) {
+                JsonArray items = getArray(settings, "linkItems");
+                if (items.size() != 2) {
+                    throw new GraphValidationException("Node " + nodeId + " needs exactly two link items");
+                }
+                for (int slot = 0; slot < 2; slot++) {
+                    JsonElement item = items.get(slot);
+                    if (!item.isJsonPrimitive() || !item.getAsJsonPrimitive().isString()
+                            || !node.setLinkItem(slot, item.getAsString())) {
+                        throw new GraphValidationException("Invalid link item on node " + nodeId);
+                    }
+                }
+            }
+            if (type == NodeType.REDSTONE_OUTPUT && settings.has("strength")) {
+                int strength = getInt(settings, "strength");
+                if (!node.setStrength(strength)) {
+                    throw new GraphValidationException("Strength " + strength + " on node " + nodeId + " is outside "
+                            + GraphLimits.MIN_STRENGTH + "-" + GraphLimits.MAX_STRENGTH);
                 }
             }
             graph.putNodeUnchecked(node);

@@ -17,6 +17,9 @@ class GraphJsonCodecTest {
         LogicNode not = graph.addNode(NodeType.NOT, 60, 25);
         LogicNode out = graph.addNode(NodeType.REDSTONE_OUTPUT, 160, 25);
         out.setFrequency(123456);
+        out.setLinkItem(0, "minecraft:redstone");
+        out.setLinkItem(1, "create:brass_ingot");
+        out.setStrength(7);
         graph.connect(new Connection(key.id(), 0, not.id(), 0));
         graph.connect(new Connection(not.id(), 0, out.id(), 0));
         return graph;
@@ -38,6 +41,9 @@ class GraphJsonCodecTest {
                 assertEquals(node.y(), other.y());
                 assertEquals(node.key(), other.key());
                 assertEquals(node.frequency(), other.frequency());
+                assertEquals(node.linkItem(0), other.linkItem(0));
+                assertEquals(node.linkItem(1), other.linkItem(1));
+                assertEquals(node.strength(), other.strength());
             }
             assertEquals(GraphJsonCodec.encode(original, false), GraphJsonCodec.encode(decoded, false));
         }
@@ -51,6 +57,9 @@ class GraphJsonCodecTest {
                 + "\"connections\":[{\"from\":1,\"fromPort\":0,\"to\":2,\"toPort\":0}],\"future\":true}");
         assertEquals(KeyCodes.DEFAULT_KEY, graph.node(1).key());
         assertEquals(0, graph.node(2).frequency());
+        assertEquals("", graph.node(2).linkItem(0));
+        assertEquals("", graph.node(2).linkItem(1));
+        assertEquals(GraphLimits.MAX_STRENGTH, graph.node(2).strength());
     }
 
     @Test
@@ -81,11 +90,32 @@ class GraphJsonCodecTest {
                         + "\"connections\":[{\"from\":1,\"fromPort\":0,\"to\":3,\"toPort\":0},{\"from\":2,\"fromPort\":0,\"to\":3,\"toPort\":0}]}",
                 "{" + HEADER + "\"nodes\":[" + "[".repeat(20) + "]".repeat(20) + "],\"connections\":[]}",
                 "x".repeat(GraphLimits.MAX_JSON_CHARS + 1),
+                output("\"linkItems\":[\"minecraft:redstone\"]"),
+                output("\"linkItems\":[\"Minecraft:Redstone\",\"\"]"),
+                output("\"linkItems\":[\"../../etc\",\"\"]"),
+                output("\"linkItems\":[1,\"\"]"),
+                output("\"linkItems\":\"minecraft:redstone\""),
+                output("\"strength\":0"),
+                output("\"strength\":16"),
         };
         for (String text : bad) {
             assertThrows(GraphValidationException.class, () -> GraphJsonCodec.decode(text),
                     () -> "accepted: " + text.substring(0, Math.min(200, text.length())));
         }
+    }
+
+    private static String output(String settings) {
+        return "{" + HEADER + "\"nodes\":[{\"id\":1,\"type\":\"redstone_output\",\"x\":0,\"y\":0,\"settings\":{"
+                + settings + "}}],\"connections\":[]}";
+    }
+
+    @Test
+    void acceptsValidLinkItems() throws Exception {
+        LogicGraph graph = GraphJsonCodec.decode(output("\"linkItems\":[\"\",\"create:item/odd-name_1.2\"],\"strength\":1"));
+        assertEquals("", graph.node(1).linkItem(0));
+        assertEquals("create:item/odd-name_1.2", graph.node(1).linkItem(1));
+        assertEquals(1, graph.node(1).strength());
+        assertTrue(graph.node(1).hasLinkFrequency());
     }
 
     @Test
@@ -106,6 +136,9 @@ class GraphJsonCodecTest {
             LogicNode node = new LogicNode(GraphLimits.MAX_NODE_ID - i, NodeType.REDSTONE_OUTPUT,
                     -GraphLimits.MAX_COORDINATE, -GraphLimits.MAX_COORDINATE);
             node.setFrequency(GraphLimits.MAX_FREQUENCY);
+            node.setLinkItem(0, "a:" + "b".repeat(GraphLimits.MAX_ITEM_ID_LENGTH - 2));
+            node.setLinkItem(1, "a:" + "b".repeat(GraphLimits.MAX_ITEM_ID_LENGTH - 2));
+            node.setStrength(GraphLimits.MAX_STRENGTH);
             graph.putNodeUnchecked(node);
         }
         for (int i = 0; i < GraphLimits.MAX_CONNECTIONS; i++) {
@@ -113,5 +146,8 @@ class GraphJsonCodecTest {
         }
         String json = GraphJsonCodec.encode(graph, true);
         assertTrue(json.length() < GraphLimits.MAX_JSON_CHARS, "size " + json.length());
+        // Saved in NBT, whose strings are limited to 65535 bytes.
+        assertTrue(GraphJsonCodec.encode(graph, false).length() < 60_000);
+        assertTrue(GraphWire.compress(GraphJsonCodec.encode(graph, false)).length < GraphLimits.MAX_COMPRESSED_BYTES);
     }
 }

@@ -1,13 +1,17 @@
 package com.bettercontroller.server;
 
 import com.bettercontroller.BetterController;
+import com.bettercontroller.integration.CreateLinkBridge;
 import com.bettercontroller.item.ModItems;
 import com.bettercontroller.logic.GraphEvaluator;
 import com.bettercontroller.logic.GraphJsonCodec;
 import com.bettercontroller.logic.GraphLimits;
 import com.bettercontroller.logic.GraphValidationException;
+import com.bettercontroller.logic.GraphWire;
 import com.bettercontroller.logic.KeyCodes;
 import com.bettercontroller.logic.LogicGraph;
+import com.bettercontroller.logic.LogicNode;
+import com.bettercontroller.logic.NodeType;
 import com.bettercontroller.network.GraphPayloads;
 import com.bettercontroller.signal.FrequencyRegistry;
 import net.minecraft.server.MinecraftServer;
@@ -35,7 +39,9 @@ import java.util.UUID;
  * server stops.
  *
  * <p>Graphs run continuously. Keyboard inputs of a graph read the keys its owner holds, and only
- * while the owner is online and holds a controller; otherwise they read as released.
+ * while the owner is online and holds a controller; otherwise they read as released. Outputs drive
+ * the mod's own frequencies and, if Create is installed, Create link frequencies
+ * (see {@link CreateLinkBridge}).
  */
 public final class ServerGraphService {
     /** Operators (permission level 2) may open, edit and delete every graph. */
@@ -48,6 +54,8 @@ public final class ServerGraphService {
     private static final Map<UUID, Integer> LAST_ACTION_TICK = new HashMap<>();
     /** Owners whose graphs must be re-evaluated on the next tick. */
     private static final Set<UUID> DIRTY_OWNERS = new HashSet<>();
+    /** Node states of every graph from its last evaluation. */
+    private static final Map<UUID, Map<Integer, Boolean>> LAST_STATES = new HashMap<>();
 
     private ServerGraphService() {
     }
@@ -102,16 +110,17 @@ public final class ServerGraphService {
                 DIRTY_OWNERS.add(entry.getKey());
             }
         }
-        if (DIRTY_OWNERS.isEmpty()) {
-            return;
-        }
         WorldGraphData data = WorldGraphData.get(server);
-        for (WorldGraphData.Entry entry : data.all()) {
-            if (DIRTY_OWNERS.contains(entry.owner())) {
-                evaluate(entry);
+        if (!DIRTY_OWNERS.isEmpty()) {
+            for (WorldGraphData.Entry entry : data.all()) {
+                if (DIRTY_OWNERS.contains(entry.owner())) {
+                    evaluate(entry);
+                }
             }
+            DIRTY_OWNERS.clear();
         }
-        DIRTY_OWNERS.clear();
+        // Every tick, because link transmitters follow their owner's position.
+        CreateLinkBridge.sync(server, data.all(), LAST_STATES);
     }
 
     // ---- packet handlers (server thread) ----
@@ -131,7 +140,7 @@ public final class ServerGraphService {
             status(player, "You may not open this graph", true);
             return;
         }
-        PacketDistributor.sendToPlayer(player, new GraphPayloads.GraphData(GraphJsonCodec.encode(entry.graph(), false)));
+        PacketDistributor.sendToPlayer(player, new GraphPayloads.GraphData(GraphWire.compress(GraphJsonCodec.encode(entry.graph(), false))));
     }
 
     public static void handleSave(ServerPlayer player, GraphPayloads.SaveGraph payload) {
@@ -140,10 +149,20 @@ public final class ServerGraphService {
         }
         LogicGraph graph;
         try {
-            graph = GraphJsonCodec.decode(payload.json());
+            graph = GraphJsonCodec.decode(GraphWire.decompress(payload.data()));
         } catch (GraphValidationException e) {
             status(player, "Not saved: " + e.getMessage(), true);
             return;
+        }
+        for (LogicNode node : graph.nodes()) {
+            if (node.type() == NodeType.REDSTONE_OUTPUT) {
+                for (int slot = 0; slot < 2; slot++) {
+                    if (!CreateLinkBridge.isKnownItem(node.linkItem(slot))) {
+                        status(player, "Not saved: unknown item " + node.linkItem(slot), true);
+                        return;
+                    }
+                }
+            }
         }
         WorldGraphData data = WorldGraphData.get(player.server);
         WorldGraphData.Entry existing = data.get(graph.id());
@@ -187,6 +206,7 @@ public final class ServerGraphService {
         }
         data.remove(payload.graphId());
         SIGNALS.removeGraph(payload.graphId());
+        LAST_STATES.remove(payload.graphId());
         status(player, "Deleted \"" + entry.graph().name() + "\"", false);
         sendGraphList(player);
         notifyOwner(player.server, entry.owner());
@@ -213,7 +233,9 @@ public final class ServerGraphService {
 
     private static void evaluate(WorldGraphData.Entry entry) {
         Set<Integer> held = HELD_KEYS.getOrDefault(entry.owner(), Set.of());
-        SIGNALS.updateGraph(entry.graph(), GraphEvaluator.evaluate(entry.graph(), held));
+        Map<Integer, Boolean> states = GraphEvaluator.evaluate(entry.graph(), held);
+        LAST_STATES.put(entry.graph().id(), states);
+        SIGNALS.updateGraph(entry.graph(), states);
     }
 
     private static boolean mayAccess(ServerPlayer player, WorldGraphData.Entry entry) {
@@ -282,6 +304,8 @@ public final class ServerGraphService {
         HELD_KEYS.clear();
         LAST_ACTION_TICK.clear();
         DIRTY_OWNERS.clear();
+        LAST_STATES.clear();
+        CreateLinkBridge.clear();
         BetterController.LOGGER.debug("Better Controller signal state reset");
     }
 }

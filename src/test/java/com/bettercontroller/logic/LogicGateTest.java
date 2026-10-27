@@ -65,6 +65,25 @@ class LogicGateTest {
     }
 
     @Test
+    void linkSettingsAreValidated() {
+        LogicNode node = new LogicNode(1, NodeType.REDSTONE_OUTPUT, 0, 0);
+        assertFalse(node.hasLinkFrequency());
+        assertTrue(node.setLinkItem(1, "minecraft:lever"));
+        assertTrue(node.hasLinkFrequency());
+        assertFalse(node.setLinkItem(2, "minecraft:lever"));
+        assertFalse(node.setLinkItem(0, "lever"));
+        assertFalse(node.setLinkItem(0, "minecraft:Lever"));
+        assertFalse(node.setLinkItem(0, "minecraft:a:b"));
+        assertFalse(node.setLinkItem(0, null));
+        assertTrue(node.setLinkItem(1, ""));
+        assertFalse(node.hasLinkFrequency());
+        assertEquals(15, node.strength());
+        assertFalse(node.setStrength(0));
+        assertFalse(node.setStrength(16));
+        assertTrue(node.setStrength(1));
+    }
+
+    @Test
     void keyboardNodesDefaultToBAndRejectInvalidKeys() {
         LogicNode node = new LogicNode(1, NodeType.KEYBOARD_INPUT, 0, 0);
         assertEquals(KEY_B, node.key());

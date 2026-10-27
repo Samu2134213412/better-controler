@@ -179,6 +179,12 @@ public final class LogicGraph {
             if (!GraphLimits.isValidFrequency(node.frequency())) {
                 throw new GraphValidationException("Invalid frequency on node " + node.id());
             }
+            if (!GraphLimits.isValidItemId(node.linkItem(0)) || !GraphLimits.isValidItemId(node.linkItem(1))) {
+                throw new GraphValidationException("Invalid link item on node " + node.id());
+            }
+            if (node.strength() < GraphLimits.MIN_STRENGTH || node.strength() > GraphLimits.MAX_STRENGTH) {
+                throw new GraphValidationException("Invalid strength on node " + node.id());
+            }
         }
         Set<Connection> seen = new HashSet<>();
         Set<Long> usedInputs = new HashSet<>();

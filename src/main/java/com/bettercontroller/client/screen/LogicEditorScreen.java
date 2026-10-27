@@ -5,6 +5,7 @@ import com.bettercontroller.logic.Connection;
 import com.bettercontroller.logic.GraphEvaluator;
 import com.bettercontroller.logic.GraphJsonCodec;
 import com.bettercontroller.logic.GraphLimits;
+import com.bettercontroller.logic.GraphWire;
 import com.bettercontroller.logic.KeyCodes;
 import com.bettercontroller.logic.LogicGraph;
 import com.bettercontroller.logic.LogicNode;
@@ -16,7 +17,12 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
 
@@ -36,7 +42,7 @@ public final class LogicEditorScreen extends Screen implements StatusSink {
     private static final int TOP_BAR = 26;
     private static final int STATUS_BAR = 14;
     private static final int PANEL_WIDTH = 132;
-    private static final int PANEL_HEIGHT = 74;
+    private static final int SLOT_SIZE = 20;
 
     private static final int NODE_WIDTH = 76;
     private static final int NODE_HEADER = 12;
@@ -78,6 +84,7 @@ public final class LogicEditorScreen extends Screen implements StatusSink {
 
     private EditBox nameBox;
     private EditBox frequencyBox;
+    private EditBox strengthBox;
     private Button changeKeyButton;
 
     public LogicEditorScreen(LogicGraph graph) {
@@ -111,13 +118,19 @@ public final class LogicEditorScreen extends Screen implements StatusSink {
         int panelX = width - PANEL_WIDTH - 4;
         int panelY = TOP_BAR + 4;
         changeKeyButton = addRenderableWidget(Button.builder(Component.translatable("gui.bettercontroller.change_key"),
-                b -> startKeyCapture()).bounds(panelX + 6, panelY + 40, PANEL_WIDTH - 12, 20).build());
-        frequencyBox = new EditBox(font, panelX + 6, panelY + 40, PANEL_WIDTH - 12, 18,
+                b -> startKeyCapture()).bounds(panelX + 6, panelY + 36, PANEL_WIDTH - 12, 20).build());
+        frequencyBox = new EditBox(font, panelX + 6, panelY + 32, PANEL_WIDTH - 12, 18,
                 Component.translatable("gui.bettercontroller.frequency"));
         frequencyBox.setMaxLength(6);
         frequencyBox.setFilter(value -> value.chars().allMatch(Character::isDigit));
         frequencyBox.setResponder(this::onFrequencyEdited);
         addRenderableWidget(frequencyBox);
+        strengthBox = new EditBox(font, panelX + PANEL_WIDTH - 36, panelY + 90, 30, 18,
+                Component.translatable("gui.bettercontroller.strength"));
+        strengthBox.setMaxLength(2);
+        strengthBox.setFilter(value -> value.chars().allMatch(Character::isDigit));
+        strengthBox.setResponder(this::onStrengthEdited);
+        addRenderableWidget(strengthBox);
         updatePanel();
     }
 
@@ -133,12 +146,17 @@ public final class LogicEditorScreen extends Screen implements StatusSink {
         boolean output = node != null && node.type() == NodeType.REDSTONE_OUTPUT;
         changeKeyButton.visible = keyboard;
         frequencyBox.visible = output;
+        strengthBox.visible = output;
         if (output) {
             String text = String.valueOf(node.frequency());
             if (!text.equals(frequencyBox.getValue())) {
                 frequencyBox.setValue(text);
             }
-        } else if (frequencyBox.isFocused()) {
+            String strength = String.valueOf(node.strength());
+            if (!strength.equals(strengthBox.getValue())) {
+                strengthBox.setValue(strength);
+            }
+        } else if (frequencyBox.isFocused() || strengthBox.isFocused()) {
             setFocused(null);
         }
         if (!keyboard) {
@@ -151,10 +169,39 @@ public final class LogicEditorScreen extends Screen implements StatusSink {
         return node != null && (node.type() == NodeType.KEYBOARD_INPUT || node.type() == NodeType.REDSTONE_OUTPUT);
     }
 
+    private int panelHeight() {
+        LogicNode node = graph.node(selectedNode);
+        return node != null && node.type() == NodeType.REDSTONE_OUTPUT ? 114 : 62;
+    }
+
     private boolean inPanel(double mx, double my) {
         int panelX = width - PANEL_WIDTH - 4;
         int panelY = TOP_BAR + 4;
-        return panelVisible() && mx >= panelX && mx < panelX + PANEL_WIDTH && my >= panelY && my < panelY + PANEL_HEIGHT;
+        return panelVisible() && mx >= panelX && mx < panelX + PANEL_WIDTH && my >= panelY && my < panelY + panelHeight();
+    }
+
+    /** Index (0 or 1) of the Create link slot under the cursor, or -1. */
+    private int linkSlotAt(double mx, double my) {
+        LogicNode node = graph.node(selectedNode);
+        if (node == null || node.type() != NodeType.REDSTONE_OUTPUT) {
+            return -1;
+        }
+        for (int slot = 0; slot < 2; slot++) {
+            int x = linkSlotX(slot);
+            int y = linkSlotY();
+            if (mx >= x && mx < x + SLOT_SIZE && my >= y && my < y + SLOT_SIZE) {
+                return slot;
+            }
+        }
+        return -1;
+    }
+
+    private int linkSlotX(int slot) {
+        return width - PANEL_WIDTH - 4 + 6 + slot * (SLOT_SIZE + 4);
+    }
+
+    private int linkSlotY() {
+        return TOP_BAR + 4 + 64;
     }
 
     private boolean inCanvas(double mx, double my) {
@@ -235,6 +282,15 @@ public final class LogicEditorScreen extends Screen implements StatusSink {
         int infoWidth = font.width(info);
         g.drawString(font, info, width - infoWidth - 4, height - STATUS_BAR + 3, 0xFF8A8F99, false);
         g.drawString(font, font.plainSubstrByWidth(status, width - infoWidth - 16), 4, height - STATUS_BAR + 3, statusColor, false);
+        int slot = linkSlotAt(mouseX, mouseY);
+        if (slot >= 0) {
+            ItemStack stack = linkStack(graph.node(selectedNode).linkItem(slot));
+            if (stack.isEmpty()) {
+                g.renderTooltip(font, Component.translatable("gui.bettercontroller.link_slot_hint"), mouseX, mouseY);
+            } else {
+                g.renderTooltip(font, stack, mouseX, mouseY);
+            }
+        }
     }
 
     private void renderGrid(GuiGraphics g) {
@@ -310,8 +366,9 @@ public final class LogicEditorScreen extends Screen implements StatusSink {
         LogicNode node = graph.node(selectedNode);
         int x = width - PANEL_WIDTH - 4;
         int y = TOP_BAR + 4;
-        g.fill(x - 1, y - 1, x + PANEL_WIDTH + 1, y + PANEL_HEIGHT + 1, 0xFF0E0F12);
-        g.fill(x, y, x + PANEL_WIDTH, y + PANEL_HEIGHT, 0xF02A2D35);
+        int panelHeight = panelHeight();
+        g.fill(x - 1, y - 1, x + PANEL_WIDTH + 1, y + panelHeight + 1, 0xFF0E0F12);
+        g.fill(x, y, x + PANEL_WIDTH, y + panelHeight, 0xF02A2D35);
         g.drawString(font, Component.translatable(node.type().translationKey()), x + 6, y + 6, 0xFFFFFFFF, false);
         if (node.type() == NodeType.KEYBOARD_INPUT) {
             Component line = capturingKey
@@ -321,7 +378,32 @@ public final class LogicEditorScreen extends Screen implements StatusSink {
         } else {
             g.drawString(font, Component.translatable("gui.bettercontroller.frequency_range",
                     GraphLimits.MIN_FREQUENCY, GraphLimits.MAX_FREQUENCY), x + 6, y + 22, 0xFFB0B6C2, false);
+            boolean create = ModList.get().isLoaded("create");
+            g.drawString(font, Component.translatable(create ? "gui.bettercontroller.create_link" : "gui.bettercontroller.create_missing"),
+                    x + 6, y + 54, create ? 0xFFB0B6C2 : 0xFF8A8F99, false);
+            for (int slot = 0; slot < 2; slot++) {
+                int sx = linkSlotX(slot);
+                int sy = linkSlotY();
+                g.fill(sx, sy, sx + SLOT_SIZE, sy + SLOT_SIZE, 0xFF8B8B8B);
+                g.fill(sx + 1, sy + 1, sx + SLOT_SIZE - 1, sy + SLOT_SIZE - 1, 0xFF373737);
+                ItemStack stack = linkStack(node.linkItem(slot));
+                if (!stack.isEmpty()) {
+                    g.renderItem(stack, sx + 2, sy + 2);
+                }
+            }
+            g.drawString(font, Component.translatable("gui.bettercontroller.strength_range",
+                    GraphLimits.MIN_STRENGTH, GraphLimits.MAX_STRENGTH), x + 6, y + 95, 0xFFB0B6C2, false);
         }
+    }
+
+    /** The item of a link slot; a barrier stands for an item that does not exist (e.g. removed mod). */
+    private static ItemStack linkStack(String itemId) {
+        if (itemId.isEmpty()) {
+            return ItemStack.EMPTY;
+        }
+        ResourceLocation id = ResourceLocation.tryParse(itemId);
+        return id == null ? new ItemStack(Items.BARRIER)
+                : BuiltInRegistries.ITEM.getOptional(id).map(ItemStack::new).orElseGet(() -> new ItemStack(Items.BARRIER));
     }
 
     private boolean isKeyDown(int key) {
@@ -381,6 +463,21 @@ public final class LogicEditorScreen extends Screen implements StatusSink {
             showStatus("", false);
         }
         if (super.mouseClicked(mx, my, button)) {
+            return true;
+        }
+        int slot = linkSlotAt(mx, my);
+        if (slot >= 0) {
+            LogicNode node = graph.node(selectedNode);
+            if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
+                node.setLinkItem(slot, "");
+                markChanged();
+            } else if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+                minecraft.setScreen(new ItemPickerScreen(this, itemId -> {
+                    if (node.setLinkItem(slot, itemId)) {
+                        markChanged();
+                    }
+                }));
+            }
             return true;
         }
         if (!inCanvas(mx, my)) {
@@ -557,6 +654,17 @@ public final class LogicEditorScreen extends Screen implements StatusSink {
         }
     }
 
+    private void onStrengthEdited(String value) {
+        LogicNode node = graph.node(selectedNode);
+        if (node == null || node.type() != NodeType.REDSTONE_OUTPUT || value.isEmpty()) {
+            return;
+        }
+        int strength = Integer.parseInt(value);
+        if (strength != node.strength() && node.setStrength(strength)) {
+            markChanged();
+        }
+    }
+
     private void openLibrary() {
         minecraft.setScreen(new BlockLibraryScreen(this, this::addNode));
     }
@@ -576,7 +684,7 @@ public final class LogicEditorScreen extends Screen implements StatusSink {
     }
 
     private void save() {
-        PacketDistributor.sendToServer(new GraphPayloads.SaveGraph(GraphJsonCodec.encode(graph, false)));
+        PacketDistributor.sendToServer(new GraphPayloads.SaveGraph(GraphWire.compress(GraphJsonCodec.encode(graph, false))));
         showStatus(Component.translatable("gui.bettercontroller.saving").getString(), false);
     }
 

@@ -56,5 +56,12 @@
   "node.bettercontroller.xor": "XOR",
   "node.bettercontroller.xor.desc": "An, wenn die Eingänge verschieden sind",
   "node.bettercontroller.redstone_output": "Redstone-Ausgang",
-  "node.bettercontroller.redstone_output.desc": "Sendet den Eingang auf einer Funkfrequenz"
+  "node.bettercontroller.redstone_output.desc": "Sendet den Eingang auf einer Funkfrequenz",
+  "screen.bettercontroller.item_picker": "Frequenz-Item wählen",
+  "gui.bettercontroller.search": "Suchen...",
+  "gui.bettercontroller.strength": "Stärke",
+  "gui.bettercontroller.strength_range": "Link-Stärke (%s-%s)",
+  "gui.bettercontroller.create_link": "Create Redstone Link:",
+  "gui.bettercontroller.create_missing": "Create-Link (Create fehlt):",
+  "gui.bettercontroller.link_slot_hint": "Linksklick: Item wählen, Rechtsklick: leeren"
 }

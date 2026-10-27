@@ -12,8 +12,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * All packets of the mod. Graphs travel as validated JSON strings (see GraphJsonCodec); string and
- * list lengths are capped here so oversized packets are rejected while decoding.
+ * All packets of the mod. Graphs travel as compressed JSON (see GraphJsonCodec and GraphWire) and
+ * are validated after decompression; sizes are capped here so oversized packets are rejected while decoding.
  */
 public final class GraphPayloads {
     /** At most this many keys are reported as held at once. */
@@ -52,11 +52,14 @@ public final class GraphPayloads {
         }
     }
 
-    /** Creates or replaces a graph. The server validates the JSON again and checks ownership. */
-    public record SaveGraph(String json) implements CustomPacketPayload {
+    /**
+     * Creates or replaces a graph, as JSON compressed with {@link com.bettercontroller.logic.GraphWire}.
+     * The server validates it again and checks ownership.
+     */
+    public record SaveGraph(byte[] data) implements CustomPacketPayload {
         public static final Type<SaveGraph> TYPE = payloadType("save_graph");
         public static final StreamCodec<ByteBuf, SaveGraph> CODEC =
-                ByteBufCodecs.stringUtf8(GraphLimits.MAX_JSON_CHARS).map(SaveGraph::new, SaveGraph::json);
+                ByteBufCodecs.byteArray(GraphLimits.MAX_COMPRESSED_BYTES).map(SaveGraph::new, SaveGraph::data);
 
         @Override
         public Type<SaveGraph> type() {
@@ -109,11 +112,11 @@ public final class GraphPayloads {
         }
     }
 
-    /** Full graph data for the editor. */
-    public record GraphData(String json) implements CustomPacketPayload {
+    /** Full graph data for the editor, compressed like {@link SaveGraph}. */
+    public record GraphData(byte[] data) implements CustomPacketPayload {
         public static final Type<GraphData> TYPE = payloadType("graph_data");
         public static final StreamCodec<ByteBuf, GraphData> CODEC =
-                ByteBufCodecs.stringUtf8(GraphLimits.MAX_JSON_CHARS).map(GraphData::new, GraphData::json);
+                ByteBufCodecs.byteArray(GraphLimits.MAX_COMPRESSED_BYTES).map(GraphData::new, GraphData::data);
 
         @Override
         public Type<GraphData> type() {

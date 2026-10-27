@@ -24,3 +24,11 @@ type = "required"
 versionRange = "[1.21.1,1.21.2)"
 ordering = "NONE"
 side = "BOTH"
+
+# Optional: redstone outputs can transmit on Create Redstone Link frequencies.
+[[dependencies.bettercontroller]]
+modId = "create"
+type = "optional"
+versionRange = "[6.0,)"
+ordering = "NONE"
+side = "BOTH"
