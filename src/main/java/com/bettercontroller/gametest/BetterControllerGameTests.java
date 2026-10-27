@@ -160,15 +160,22 @@ public final class BetterControllerGameTests {
         BlockPos receiverPos = new BlockPos(1, 2, 1);
         helper.setBlock(new BlockPos(1, 1, 1), Blocks.STONE);
         Block link = BuiltInRegistries.BLOCK.get(ResourceLocation.parse("create:redstone_link"));
-        helper.setBlock(receiverPos, withValue(withValue(link.defaultBlockState(), "facing", "up"), "receiver", "true"));
+        BlockState transmitterState = withValue(link.defaultBlockState(), "facing", "up");
+        // Like a player-placed link: it starts as a transmitter (which creates its link behaviour on
+        // the first tick) and is then switched to receiving, which keeps the frequency items.
+        helper.setBlock(receiverPos, transmitterState);
         CreateLinkBridge.TestTransmitter[] transmitter = new CreateLinkBridge.TestTransmitter[1];
 
         helper.startSequence()
-                // Create adds the link behaviour when the block entity first ticks.
                 .thenWaitUntil(() -> helper.assertTrue(linkBehaviour(helper, receiverPos) != null,
                         "Create Redstone Link not initialized yet"))
                 .thenExecute(() -> {
                     setCreateFrequency(helper, linkBehaviour(helper, receiverPos));
+                    helper.setBlock(receiverPos, withValue(transmitterState, "receiver", "true"));
+                })
+                .thenWaitUntil(() -> helper.assertTrue(isListening(linkBehaviour(helper, receiverPos)),
+                        "Create Redstone Link did not switch to receiving"))
+                .thenExecute(() -> {
                     try {
                         transmitter[0] = CreateLinkBridge.testTransmitter(helper.getLevel(),
                                 helper.absolutePos(new BlockPos(0, 1, 0)), "minecraft:redstone", "minecraft:lapis_lazuli", 15);
@@ -208,6 +215,14 @@ public final class BetterControllerGameTests {
             Object type = linkClass.getField("TYPE").get(null);
             return behaviourClass.getMethod("get", BlockGetter.class, BlockPos.class, typeClass)
                     .invoke(null, helper.getLevel(), helper.absolutePos(relativePos), type);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Create API not found", e);
+        }
+    }
+
+    private static boolean isListening(Object link) {
+        try {
+            return link != null && (boolean) link.getClass().getMethod("isListening").invoke(link);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("Create API not found", e);
         }
