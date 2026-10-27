@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    " R ",
+    "IQI",
+    "III"
+  ],
+  "key": {
+    "R": { "item": "minecraft:redstone" },
+    "I": { "item": "minecraft:iron_ingot" },
+    "Q": { "item": "minecraft:quartz" }
+  },
+  "result": {
+    "id": "bettercontroller:controller",
+    "count": 1
+  }
+}

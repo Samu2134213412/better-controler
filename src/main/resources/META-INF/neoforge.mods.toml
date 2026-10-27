@@ -1,0 +1,26 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "All Rights Reserved"
+
+[[mods]]
+modId = "bettercontroller"
+version = "0.1.0"
+displayName = "Better Controller"
+description = '''
+Build logic circuits in a visual node editor and send their outputs on wireless frequencies.
+Hold the controller and press Shift+C to open the editor.
+'''
+
+[[dependencies.bettercontroller]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1.0,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.bettercontroller]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1,1.21.2)"
+ordering = "NONE"
+side = "BOTH"
