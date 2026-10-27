@@ -33,7 +33,9 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import java.lang.reflect.Method;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -108,7 +110,7 @@ public final class BetterControllerGameTests {
         BlockPos receiverPos = new BlockPos(1, 2, 1);
         int frequency = 777_001;
 
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = mockPlayer(helper);
         player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(ModItems.CONTROLLER.get()));
         BlockPos playerPos = helper.absolutePos(new BlockPos(1, 1, 0));
         player.moveTo(playerPos.getX() + 0.5, playerPos.getY(), playerPos.getZ() + 0.5);
@@ -155,6 +157,25 @@ public final class BetterControllerGameTests {
                     player.getServer().getPlayerList().remove(player);
                 })
                 .thenSucceed();
+    }
+
+    /**
+     * A mock player in the player list. Other mods' login handlers may throw because the mock
+     * connection cannot receive their packets (Create does); the player is already in the player
+     * list when the login event fires, so it is looked up there in that case.
+     */
+    private static ServerPlayer mockPlayer(GameTestHelper helper) {
+        var players = helper.getLevel().getServer().getPlayerList();
+        Set<UUID> before = new HashSet<>();
+        players.getPlayers().forEach(p -> before.add(p.getUUID()));
+        try {
+            return helper.makeMockServerPlayerInLevel();
+        } catch (RuntimeException e) {
+            return players.getPlayers().stream()
+                    .filter(p -> !before.contains(p.getUUID()))
+                    .findFirst()
+                    .orElseThrow(() -> e);
+        }
     }
 
     @SuppressWarnings("unchecked")
