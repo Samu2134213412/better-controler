@@ -133,9 +133,12 @@ public final class BetterControllerGameTests {
         }
 
         helper.startSequence()
-                .thenExecuteAfter(3, () -> {
+                // Create adds the link behaviour when the block entity first ticks.
+                .thenWaitUntil(() -> helper.assertTrue(!create || linkBehaviour(helper, receiverPos) != null,
+                        "Create Redstone Link not initialized yet"))
+                .thenExecute(() -> {
                     if (create) {
-                        setCreateFrequency(helper, helper.absolutePos(receiverPos));
+                        setCreateFrequency(helper, linkBehaviour(helper, receiverPos));
                     }
                     ServerGraphService.handleHeldKeys(player, new GraphPayloads.HeldKeys(List.of(KeyCodes.DEFAULT_KEY)));
                 })
@@ -187,21 +190,25 @@ public final class BetterControllerGameTests {
         return state.setValue(property, property.getValue(value).orElseThrow());
     }
 
-    /** Puts redstone and lapis into the two frequency slots of a Create Redstone Link. */
-    private static void setCreateFrequency(GameTestHelper helper, BlockPos absolutePos) {
+    /** The LinkBehaviour of the Create Redstone Link at a relative position, or null. */
+    private static Object linkBehaviour(GameTestHelper helper, BlockPos relativePos) {
         try {
             ClassLoader loader = BetterControllerGameTests.class.getClassLoader();
             Class<?> behaviourClass = Class.forName("com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour", true, loader);
             Class<?> typeClass = Class.forName("com.simibubi.create.foundation.blockEntity.behaviour.BehaviourType", true, loader);
             Class<?> linkClass = Class.forName("com.simibubi.create.content.redstone.link.LinkBehaviour", true, loader);
             Object type = linkClass.getField("TYPE").get(null);
-            Object link = behaviourClass.getMethod("get", BlockGetter.class, BlockPos.class, typeClass)
-                    .invoke(null, helper.getLevel(), absolutePos, type);
-            if (link == null) {
-                helper.fail("Create Redstone Link has no link behaviour");
-                return;
-            }
-            Method setFrequency = linkClass.getMethod("setFrequency", boolean.class, ItemStack.class);
+            return behaviourClass.getMethod("get", BlockGetter.class, BlockPos.class, typeClass)
+                    .invoke(null, helper.getLevel(), helper.absolutePos(relativePos), type);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Create API not found", e);
+        }
+    }
+
+    /** Puts redstone and lapis into the two frequency slots of a Create Redstone Link. */
+    private static void setCreateFrequency(GameTestHelper helper, Object link) {
+        try {
+            Method setFrequency = link.getClass().getMethod("setFrequency", boolean.class, ItemStack.class);
             setFrequency.invoke(link, true, new ItemStack(Items.REDSTONE));
             setFrequency.invoke(link, false, new ItemStack(Items.LAPIS_LAZULI));
         } catch (ReflectiveOperationException e) {
