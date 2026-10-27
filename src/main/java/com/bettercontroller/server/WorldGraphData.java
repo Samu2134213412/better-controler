@@ -86,7 +86,8 @@ public final class WorldGraphData extends SavedData {
         return tag;
     }
 
-    private static WorldGraphData load(CompoundTag tag, HolderLookup.Provider registries) {
+    /** Reads data written by {@link #save}; public for the game tests. */
+    public static WorldGraphData load(CompoundTag tag, HolderLookup.Provider registries) {
         WorldGraphData data = new WorldGraphData();
         ListTag list = tag.getList("graphs", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {

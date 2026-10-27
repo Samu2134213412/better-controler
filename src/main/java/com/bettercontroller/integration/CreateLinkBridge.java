@@ -170,6 +170,25 @@ public final class CreateLinkBridge {
         return true;
     }
 
+    /**
+     * Adds, updates and removes one transmitter in Create's network, to check at runtime that the
+     * reflective calls and the proxy work with the installed Create version. Used by the game tests.
+     */
+    public static void selfTest(ServerLevel level, BlockPos pos) throws ReflectiveOperationException {
+        if (!isAvailable()) {
+            throw new IllegalStateException("Create link bridge is not available");
+        }
+        Object key = networkKey("minecraft:redstone", "");
+        if (key == null) {
+            throw new IllegalStateException("Could not build a Create frequency");
+        }
+        VirtualLink link = new VirtualLink(level, pos, key, "minecraft:redstone", "", 15);
+        link.add();
+        link.strength = 7;
+        link.update();
+        link.remove();
+    }
+
     /** Server stopped: Create drops its network space with the levels, so only forget our side. */
     public static void clear() {
         LINKS.clear();

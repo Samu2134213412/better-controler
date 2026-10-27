@@ -25,9 +25,25 @@ jobs:
           chmod +x gradlew
           ./gradlew build --stacktrace
 
-      - name: Server startup check
+      # Starts a real server and runs the game tests (src/main/java/.../gametest). The game test
+      # server exits with code 0 even if it fails to start, so the log is checked as well.
+      - name: Game tests without Create
         timeout-minutes: 10
-        run: ./gradlew runGameTestServer
+        run: |
+          ./gradlew runGameTestServer --console=plain 2>&1 | tee gametest.log
+          grep -q "required tests passed" gametest.log || { echo "::error::Game tests failed (see log above)"; exit 1; }
+
+      - name: Game tests with Create
+        timeout-minutes: 10
+        run: |
+          url=$(curl -fsS 'https://api.modrinth.com/v2/project/create/version?loaders=%5B%22neoforge%22%5D&game_versions=%5B%221.21.1%22%5D' \
+            | jq -r '[.[] | select(.version_type == "release")][0].files[] | select(.primary) | .url')
+          echo "Create: $url"
+          mkdir -p run/mods
+          curl -fsSL -o run/mods/create.jar "$url"
+          ./gradlew runGameTestServer --console=plain 2>&1 | tee gametest-create.log
+          grep -q "Create found" gametest-create.log || { echo "::error::Create was not detected"; exit 1; }
+          grep -q "required tests passed" gametest-create.log || { echo "::error::Game tests with Create failed (see log above)"; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:
